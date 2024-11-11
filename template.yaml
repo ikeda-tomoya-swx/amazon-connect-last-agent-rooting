@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  ResourcePrefix:
+    Type: String
+    Default: "last-agent-"
+    Description: "すべてのリソースに付与するプレフィックス"
+
+  ConnectInstanceId:
+    Type: String
+    Default: "default-instance-id"
+
+Resources:
+  # DynamoDB テーブル
+  CustomerDataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ResourcePrefix}CustomerData"
+      AttributeDefinitions:
+        - AttributeName: phoneNumber
+          AttributeType: S
+      KeySchema:
+        - AttributeName: phoneNumber
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  # Lambda 関数（upsert_customer_data）
+  UpsertCustomerDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ResourcePrefix}upsert_customer_data"
+      Handler: upsert_customer_data.lambda_handler
+      Runtime: python3.12
+      CodeUri: ./src/functions/upsert_customer_data
+      Environment:
+        Variables:
+          tableName: !Ref CustomerDataTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CustomerDataTable
+
+  # Lambda 関数（get_customer_data）
+  GetCustomerDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ResourcePrefix}get_customer_data"
+      Handler: get_customer_data.lambda_handler
+      Runtime: python3.12
+      CodeUri: ./src/functions/get_customer_data
+      Environment:
+        Variables:
+          tableName: !Ref CustomerDataTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CustomerDataTable
+
+Outputs:
+  CustomerDataTableName:
+    Description: DynamoDB テーブル名
+    Value: !Ref CustomerDataTable
+  UpsertCustomerDataFunctionArn:
+    Description: upsert_customer_data Lambda 関数のARN
+    Value: !GetAtt UpsertCustomerDataFunction.Arn
+  GetCustomerDataFunctionArn:
+    Description: get_customer_data Lambda 関数のARN
+    Value: !GetAtt GetCustomerDataFunction.Arn
